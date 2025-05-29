@@ -1,0 +1,235 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins: agent
+spec:
+  serviceAccountName: jenkins-deployer
+  containers:
+  - name: maven
+    image: maven:3.8.6-openjdk-11
+    command:
+    - cat
+    tty: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+  - name: docker
+    image: docker:20.10.17-dind
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+    - cat
+    tty: true
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+"""
+        }
+    }
+
+    environment {
+        DOCKER_REGISTRY = credentials('docker-registry')
+        AWS_CREDENTIALS = credentials('aws-credentials')
+        EKS_CLUSTER_NAME = 'last9-demo'
+        AWS_REGION = 'ap-south-1'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/muktaa/demo-project.git'
+            }
+        }
+
+        stage('Build Services') {
+            parallel {
+                stage('Build User Service') {
+                    steps {
+                        container('maven') {
+                            dir('user-service') {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                        }
+                    }
+                }
+                stage('Build Order Service') {
+                    steps {
+                        container('maven') {
+                            dir('order-service') {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                        }
+                    }
+                }
+                stage('Build Notification Service') {
+                    steps {
+                        container('maven') {
+                            dir('notification-service') {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            parallel {
+                stage('Test User Service') {
+                    steps {
+                        container('maven') {
+                            dir('user-service') {
+                                sh 'mvn test'
+                            }
+                        }
+                    }
+                }
+                stage('Test Order Service') {
+                    steps {
+                        container('maven') {
+                            dir('order-service') {
+                                sh 'mvn test'
+                            }
+                        }
+                    }
+                }
+                stage('Test Notification Service') {
+                    steps {
+                        container('maven') {
+                            dir('notification-service') {
+                                sh 'mvn test'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            parallel {
+                stage('Build User Service Image') {
+                    steps {
+                        container('docker') {
+                            dir('user-service') {
+                                sh """
+                                docker build -t ${DOCKER_REGISTRY}/user-service:${BUILD_NUMBER} .
+                                docker tag ${DOCKER_REGISTRY}/user-service:${BUILD_NUMBER} ${DOCKER_REGISTRY}/user-service:latest
+                                """
+                            }
+                        }
+                    }
+                }
+                stage('Build Order Service Image') {
+                    steps {
+                        container('docker') {
+                            dir('order-service') {
+                                sh """
+                                docker build -t ${DOCKER_REGISTRY}/order-service:${BUILD_NUMBER} .
+                                docker tag ${DOCKER_REGISTRY}/order-service:${BUILD_NUMBER} ${DOCKER_REGISTRY}/order-service:latest
+                                """
+                            }
+                        }
+                    }
+                }
+                stage('Build Notification Service Image') {
+                    steps {
+                        container('docker') {
+                            dir('notification-service') {
+                                sh """
+                                docker build -t ${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER} .
+                                docker tag ${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER} ${DOCKER_REGISTRY}/notification-service:latest
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Push Docker Images') {
+            steps {
+                container('docker') {
+                    sh """
+                    echo ${DOCKER_REGISTRY_PSW} | docker login -u ${DOCKER_REGISTRY_USR} --password-stdin
+                    docker push ${DOCKER_REGISTRY}/user-service:${BUILD_NUMBER}
+                    docker push ${DOCKER_REGISTRY}/user-service:latest
+                    docker push ${DOCKER_REGISTRY}/order-service:${BUILD_NUMBER}
+                    docker push ${DOCKER_REGISTRY}/order-service:latest
+                    docker push ${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER}
+                    docker push ${DOCKER_REGISTRY}/notification-service:latest
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                container('kubectl') {
+                    sh """
+                    # Configure kubectl for EKS
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                    
+                    # Create namespace if not exists
+                    kubectl apply -f k8s/namespace.yaml
+                    
+                    # Deploy PostgreSQL and Zipkin
+                    kubectl apply -f k8s/postgres.yaml
+                    kubectl apply -f k8s/zipkin.yaml
+                    
+                    # Wait for PostgreSQL to be ready
+                    kubectl wait --for=condition=available --timeout=300s deployment/postgres -n microservices-demo
+                    
+                    # Update image tags in deployment files
+                    sed -i 's|your-registry|${DOCKER_REGISTRY}|g' k8s/user-service.yaml
+                    sed -i 's|your-registry|${DOCKER_REGISTRY}|g' k8s/order-service.yaml
+                    sed -i 's|your-registry|${DOCKER_REGISTRY}|g' k8s/notification-service.yaml
+                    
+                    sed -i 's|:latest|:${BUILD_NUMBER}|g' k8s/user-service.yaml
+                    sed -i 's|:latest|:${BUILD_NUMBER}|g' k8s/order-service.yaml
+                    sed -i 's|:latest|:${BUILD_NUMBER}|g' k8s/notification-service.yaml
+                    
+                    # Deploy services
+                    kubectl apply -f k8s/user-service.yaml
+                    kubectl apply -f k8s/order-service.yaml
+                    kubectl apply -f k8s/notification-service.yaml
+                    
+                    # Deploy ingress
+                    kubectl apply -f k8s/ingress.yaml
+                    
+                    # Wait for deployments to be ready
+                    kubectl wait --for=condition=available --timeout=300s deployment/user-service -n microservices-demo
+                    kubectl wait --for=condition=available --timeout=300s deployment/order-service -n microservices-demo
+                    kubectl wait --for=condition=available --timeout=300s deployment/notification-service -n microservices-demo
+                    
+                    # Show deployment status
+                    kubectl get pods -n microservices-demo
+                    kubectl get services -n microservices-demo
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Deployment completed successfully!'
+        }
+        failure {
+            echo 'Deployment failed!'
+        }
+    }
+} 

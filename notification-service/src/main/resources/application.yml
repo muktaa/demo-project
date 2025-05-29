@@ -1,0 +1,42 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: jdbc:h2:mem:notificationdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: password
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  h2:
+    console:
+      enabled: true
+  sleuth:
+    zipkin:
+      base-url: http://${ZIPKIN_HOST:localhost}:${ZIPKIN_PORT:9411}
+    sampler:
+      probability: 1.0
+
+news:
+  api:
+    url: ${NEWS_API_URL:https://hacker-news.firebaseio.com/v0/topstories.json}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.demo.notificationservice: DEBUG
+    org.springframework.cloud.sleuth: DEBUG 
