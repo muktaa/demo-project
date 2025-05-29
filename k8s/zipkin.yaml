@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zipkin
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   replicas: 1
   selector:
@@ -24,7 +24,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: zipkin-service
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   selector:
     app: zipkin

@@ -1,15 +1,15 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: microservices-ingress
-  namespace: microservices-demo
+  name: last9-otel-ingress
+  namespace: last9-otel-demo
   annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
 spec:
   rules:
-  - host: microservices-demo.yourdomain.com
+  - host: last9-otel-demo.last9.com
     http:
       paths:
       - path: /api/users

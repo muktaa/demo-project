@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: user-service
-        image: your-registry/user-service:latest
+        image: last9mukta/user-service:latest
         ports:
         - containerPort: 8081
         env:

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-config
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 data:
   POSTGRES_DB: microservicesdb
   POSTGRES_USER: postgres
@@ -13,7 +13,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   replicas: 1
   selector:
@@ -45,7 +45,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   accessModes:
     - ReadWriteOnce
@@ -58,7 +58,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres-service
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   selector:
     app: postgres

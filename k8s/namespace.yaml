@@ -1,4 +1,4 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: microservices-demo 
+  name: last9-otel-demo
