@@ -33,7 +33,7 @@ pipeline {
     }
 
     environment {
-        DOCKER_REGISTRY = 'docker.io'
+        DOCKER_REGISTRY = 'docker.io/last9mukta'
         KUBE_NAMESPACE = 'last9-otel-demo'
         LAST9_AUTH_HEADER = credentials('last9-auth-header')
     }
@@ -45,7 +45,7 @@ pipeline {
             }
         }
 
-        stage('Build and Test') {
+        /*stage('Build and Test') {
             parallel {
                 stage('User Service') {
                     steps {
@@ -75,7 +75,7 @@ pipeline {
                     }
                 }
             }
-        }
+        }*/
 
         stage('Pull Docker Images') {
             steps {
