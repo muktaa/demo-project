@@ -1,4 +1,4 @@
-// Minimal Jenkins Pipeline - Skip Docker Issues
+// Fixed Jenkins Pipeline
 pipeline {
     agent {
         kubernetes {
@@ -14,15 +14,16 @@ spec:
   - name: kubectl
     image: bitnami/kubectl:latest
     command:
-    - cat
-    tty: true
+    - sleep
+    args:
+    - 3600
+    env:
+    - name: AWS_DEFAULT_REGION
+      value: ap-south-1
+    - name: EKS_CLUSTER_NAME
+      value: last9-demo
 """
         }
-    }
-
-    environment {
-        AWS_DEFAULT_REGION = 'ap-south-1'
-        EKS_CLUSTER_NAME = 'last9-demo'
     }
 
     stages {
@@ -35,10 +36,14 @@ spec:
         stage('Deploy to EKS') {
             steps {
                 container('kubectl') {
-                    script {
-                        sh """
+                    sh '''
+                        echo "=== Starting EKS Deployment ==="
+                        
                         # Update kubeconfig
-                        aws eks update-kubeconfig --region ${AWS_DEFAULT_REGION} --name ${EKS_CLUSTER_NAME}
+                        aws eks update-kubeconfig --region ap-south-1 --name last9-demo
+                        
+                        # Verify connection
+                        kubectl get nodes
                         
                         # Create namespace
                         kubectl apply -f k8s/namespace.yaml
@@ -55,8 +60,7 @@ spec:
                         # Show status
                         kubectl get pods -n microservices-demo
                         kubectl get services -n microservices-demo
-                        """
-                    }
+                    '''
                 }
             }
         }
@@ -64,9 +68,7 @@ spec:
 
     post {
         always {
-            script {
-                sh 'rm -rf *'
-            }
+            deleteDir()
         }
         success {
             echo '✅ Deployment completed successfully!'
