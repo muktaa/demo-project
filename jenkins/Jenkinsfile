@@ -1,73 +1,163 @@
 pipeline {
-    environment {
-        DOCKER_REGISTRY = 'docker.io/last9mukta'
-        AWS_REGION = 'ap-south-1'
-        EKS_CLUSTER_NAME = 'last9-demo'
-        KUBE_NAMESPACE = 'last9-otel-demo'
-        LAST9_AUTH_HEADER = credentials('last9-auth-header')
-    }
-
     agent {
         kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-spec:
-  serviceAccountName: jenkins-deployer
-  containers:
-  - name: aws-kubectl
-    image: amazon/aws-cli:latest
-    command: ['sleep', '3600']
-"""
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: maven
+                    image: maven:3.8.6-openjdk-11
+                    command:
+                    - cat
+                    tty: true
+                  - name: kubectl
+                    image: bitnami/kubectl:latest
+                    command:
+                    - cat
+                    tty: true
+            '''
         }
+    }
+
+    environment {
+        DOCKER_REGISTRY = 'docker.io'
+        KUBE_NAMESPACE = 'last9-otel-demo'
+        LAST9_AUTH_HEADER = credentials('last9-auth-header')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/muktaa/demo-project.git'
+                checkout scm
             }
         }
 
-        stage('Setup Tools') {
+        stage('Build and Test') {
+            parallel {
+                stage('User Service') {
+                    steps {
+                        container('maven') {
+                            dir('user-service') {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                        }
+                    }
+                }
+                stage('Order Service') {
+                    steps {
+                        container('maven') {
+                            dir('order-service') {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                        }
+                    }
+                }
+                stage('Notification Service') {
+                    steps {
+                        container('maven') {
+                            dir('notification-service') {
+                                sh 'mvn clean package -DskipTests'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build and Push Docker Images') {
             steps {
-                container('aws-kubectl') {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker-registry', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh '''
+                            docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} -p ${DOCKER_PASS}
+                            
+                            # Build and push user-service
+                            docker build -t ${DOCKER_REGISTRY}/last9mukta/user-service:otel user-service/
+                            docker push ${DOCKER_REGISTRY}/last9mukta/user-service:otel
+                            
+                            # Build and push order-service
+                            docker build -t ${DOCKER_REGISTRY}/last9mukta/order-service:otel order-service/
+                            docker push ${DOCKER_REGISTRY}/last9mukta/order-service:otel
+                            
+                            # Build and push notification-service
+                            docker build -t ${DOCKER_REGISTRY}/last9mukta/notification-service:otel notification-service/
+                            docker push ${DOCKER_REGISTRY}/last9mukta/notification-service:otel
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                container('kubectl') {
+                    script {
+                        withAWS(credentials: 'aws-credentials', region: 'ap-south-1') {
+                            sh '''
+                                # Update kubeconfig
+                                aws eks update-kubeconfig --name last9-otel-demo --region ap-south-1
+                                
+                                # Create namespace if it doesn't exist
+                                kubectl create namespace ${KUBE_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                                
+                                # Create OpenTelemetry secret
+                                kubectl create secret generic otel-secret \
+                                    --from-literal=otel-headers="${LAST9_AUTH_HEADER}" \
+                                    --namespace ${KUBE_NAMESPACE} \
+                                    --dry-run=client -o yaml | kubectl apply -f -
+                                
+                                # Deploy PostgreSQL
+                                echo "Deploying PostgreSQL..."
+                                kubectl apply -f k8s/postgres.yaml
+                                
+                                # Wait for PostgreSQL to be ready
+                                echo "Waiting for PostgreSQL to be ready..."
+                                kubectl wait --for=condition=ready pod -l app=postgres -n ${KUBE_NAMESPACE} --timeout=300s
+                                
+                                # Deploy services
+                                echo "Deploying microservices..."
+                                kubectl apply -f k8s/
+                                
+                                # Wait for deployments
+                                echo "Waiting for deployments to be ready..."
+                                kubectl wait --for=condition=available deployment -l app=user-service -n ${KUBE_NAMESPACE} --timeout=300s
+                                kubectl wait --for=condition=available deployment -l app=order-service -n ${KUBE_NAMESPACE} --timeout=300s
+                                kubectl wait --for=condition=available deployment -l app=notification-service -n ${KUBE_NAMESPACE} --timeout=300s
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                container('kubectl') {
                     sh '''
-                        echo "Installing kubectl..."
-                        curl -LO https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl
-                        chmod +x kubectl && mv kubectl /usr/local/bin/
-                        kubectl version --client
+                        echo "Checking pod status..."
+                        kubectl get pods -n ${KUBE_NAMESPACE}
+                        
+                        echo "Checking services..."
+                        kubectl get svc -n ${KUBE_NAMESPACE}
+                        
+                        echo "Checking ingress..."
+                        kubectl get ingress -n ${KUBE_NAMESPACE}
                     '''
                 }
             }
         }
+    }
 
-        stage('Configure EKS') {
-            steps {
-                container('aws-kubectl') {
-                    sh """
-                        aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
-                        kubectl get nodes
-                    """
-                }
-            }
+    post {
+        always {
+            cleanWs()
         }
-
-        stage('Create Namespace and OpenTelemetry Config') {
-            steps {
-               container('aws-kubectl') {
-                   sh """
-                       kubectl create secret generic otel-secret \
-                        --from-literal=otel-headers="${LAST9_AUTH_HEADER}" \
-                        -n ${KUBE_NAMESPACE} \
-                        --dry-run=client -o yaml | kubectl apply -f -
-                """
-               }
-            }
+        success {
+            echo "Deployment completed successfully!"
         }
-
-        stage('Deploy Infrastructure') {
-            steps {
-                container('aws-kubectl') {
-                    sh """
-                        echo "Deploying PostgreSQL..."
+        failure {
+            echo "Deployment failed!"
+        }
+    }
+}
