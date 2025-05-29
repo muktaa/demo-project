@@ -1,136 +1,41 @@
 pipeline {
-    environment {
-        // Define environment variables
-        DOCKER_REGISTRY = 'docker.io/last9mukta'
-        AWS_REGION = 'ap-south-1'
-        EKS_CLUSTER_NAME = 'last9-demo'
-        KUBE_NAMESPACE = 'last9-otel-demo'
-    }
-
     agent {
         kubernetes {
             yaml """
 apiVersion: v1
 kind: Pod
-metadata:
-  labels:
-    jenkins: agent
 spec:
   serviceAccountName: jenkins-deployer
   containers:
-  - name: kubectl
-    image: bitnami/kubectl:latest
-    command:
-    - sleep
-    args:
-    - 3600
-    env:
-    - name: AWS_DEFAULT_REGION
-      value: ap-south-1
-    - name: EKS_CLUSTER_NAME
-      value: last9-demo
+  - name: aws-kubectl
+    image: amazon/aws-cli:latest
+    command: ['sleep', '3600']
 """
         }
     }
 
     stages {
-        stage('Checkout') {
+        stage('Setup Tools') {
             steps {
-                git branch: 'main', url: 'https://github.com/muktaa/demo-project.git'
-            }
-        }
-
-        stage('Configure EKS') {
-            steps {
-                container('kubectl') {
-                    sh """
-                    echo "Configuring kubectl for EKS..."
-                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
-                    """
+                container('aws-kubectl') {
+                    sh '''
+                        curl -LO https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl
+                        chmod +x kubectl && mv kubectl /usr/local/bin/
+                        kubectl version --client
+                    '''
                 }
             }
         }
-
-        stage('Create Namespace') {
+        
+        stage('Deploy to EKS') {
             steps {
-                container('kubectl') {
-                    sh """
-                    echo "Creating namespace..."
-                    kubectl apply -f k8s/namespace.yaml
-                    """
-                }
-            }
-        }
-
-        stage('Deploy Infrastructure') {
-            steps {
-                container('kubectl') {
-                    sh """
-                    echo "Deploying PostgreSQL and Zipkin..."
-                    kubectl apply -f k8s/postgres.yaml
-                    kubectl apply -f k8s/zipkin.yaml
-                    
-                    echo "Waiting for PostgreSQL to be ready..."
-                    kubectl wait --for=condition=available --timeout=300s deployment/postgres -n ${KUBE_NAMESPACE}
-                    """
-                }
-            }
-        }
-
-        stage('Update Image References') {
-            steps {
-                container('kubectl') {
-                    sh """
-                    echo "Updating image references..."
-                    sed -i 's|docker.io/last9mukta|${DOCKER_REGISTRY}|g' k8s/user-service.yaml
-                    sed -i 's|docker.io/last9mukta|${DOCKER_REGISTRY}|g' k8s/order-service.yaml
-                    sed -i 's|docker.io/last9mukta|${DOCKER_REGISTRY}|g' k8s/notification-service.yaml
-                    
-                    sed -i 's|:latest|:${BUILD_NUMBER}|g' k8s/user-service.yaml
-                    sed -i 's|:latest|:${BUILD_NUMBER}|g' k8s/order-service.yaml
-                    sed -i 's|:latest|:${BUILD_NUMBER}|g' k8s/notification-service.yaml
-                    """
-                }
-            }
-        }
-
-        stage('Deploy Services') {
-            steps {
-                container('kubectl') {
-                    sh """
-                    echo "Deploying microservices..."
-                    kubectl apply -f k8s/user-service.yaml
-                    kubectl apply -f k8s/order-service.yaml
-                    kubectl apply -f k8s/notification-service.yaml
-                    """
-                }
-            }
-        }
-
-        stage('Deploy Ingress') {
-            steps {
-                container('kubectl') {
-                    sh """
-                    echo "Deploying ingress..."
-                    kubectl apply -f k8s/ingress.yaml
-                    """
-                }
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                container('kubectl') {
-                    sh """
-                    echo "Waiting for services to be ready..."
-                    kubectl wait --for=condition=available --timeout=300s deployment/user-service -n ${KUBE_NAMESPACE}
-                    kubectl wait --for=condition=available --timeout=300s deployment/order-service -n ${KUBE_NAMESPACE}
-                    kubectl wait --for=condition=available --timeout=300s deployment/notification-service -n ${KUBE_NAMESPACE}
-                    
-                    echo "Checking deployment status..."
-                    kubectl get pods -n ${KUBE_NAMESPACE}
-                    kubectl get services -n ${KUBE_NAMESPACE}
-                    """
+                container('aws-kubectl') {
+                    sh '''
+                        aws eks update-kubeconfig --region ap-south-1 --name last9-demo
+                        kubectl apply -f k8s/
+                        kubectl get pods -n last9-otel-demo
+                        kubectl get services -n last9-otel-demo
+                    '''
                 }
             }
         }
@@ -139,12 +44,6 @@ spec:
     post {
         always {
             deleteDir()
-        }
-        success {
-            echo '✅ Deployment completed successfully!'
-        }
-        failure {
-            echo '❌ Deployment failed!'
         }
     }
 }
