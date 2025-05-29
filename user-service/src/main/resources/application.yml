@@ -37,5 +37,4 @@ management:
 
 logging:
   level:
-    com.demo.userservice: DEBUG
-    org.springframework.cloud.sleuth: DEBUG 
+    com.demo.userservice: DEBUG 
