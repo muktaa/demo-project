@@ -43,6 +43,7 @@ spec:
         AWS_CREDENTIALS = credentials('aws-credentials')
         EKS_CLUSTER_NAME = 'last9-demo'
         AWS_REGION = 'ap-south-1'
+        KUBE_NAMESPACE = 'last9-otel-demo'
     }
 
     stages {
