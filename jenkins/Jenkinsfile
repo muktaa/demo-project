@@ -16,6 +16,18 @@ pipeline {
                     command:
                     - cat
                     tty: true
+                  - name: docker
+                    image: docker:20.10.16
+                    command:
+                    - cat
+                    tty: true
+                    volumeMounts:
+                    - mountPath: /var/run/docker.sock
+                      name: docker-sock
+                  volumes:
+                  - name: docker-sock
+                    hostPath:
+                      path: /var/run/docker.sock
             '''
         }
     }
@@ -65,7 +77,33 @@ pipeline {
             }
         }
 
-        stage('Build and Push Docker Images') {
+        stage('Pull Docker Images') {
+            steps {
+                container('docker') {
+                    script {
+                        withCredentials([usernamePassword(credentialsId: 'docker-registry', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh '''
+                                docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} -p ${DOCKER_PASS}
+                                
+                                # Pull user-service image
+                                docker pull ${DOCKER_REGISTRY}/last9mukta/user-service:otel
+                                
+                                # Pull order-service image
+                                docker pull ${DOCKER_REGISTRY}/last9mukta/order-service:otel
+                                
+                                # Pull notification-service image
+                                docker pull ${DOCKER_REGISTRY}/last9mukta/notification-service:otel
+                                
+                                # Verify images
+                                docker images | grep last9mukta
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        /*stage('Build and Push Docker Images') {
             steps {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'docker-registry', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -87,7 +125,7 @@ pipeline {
                     }
                 }
             }
-        }
+        }*/
 
         stage('Deploy to EKS') {
             steps {
