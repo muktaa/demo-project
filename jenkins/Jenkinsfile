@@ -36,15 +36,17 @@ spec:
         stage('Push Docker Images') {
             steps {
                 container('docker') {
-                    sh """
-                    echo ${DOCKER_REGISTRY_PSW} | docker login -u ${DOCKER_REGISTRY_USR} --password-stdin
-                    docker push ${DOCKER_REGISTRY}/user-service:${BUILD_NUMBER}
-                    docker push ${DOCKER_REGISTRY}/user-service:latest
-                    docker push ${DOCKER_REGISTRY}/order-service:${BUILD_NUMBER}
-                    docker push ${DOCKER_REGISTRY}/order-service:latest
-                    docker push ${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER}
-                    docker push ${DOCKER_REGISTRY}/notification-service:latest
-                    """
+                    withCredentials([usernamePassword(credentialsId: 'docker-registry', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh """
+                        echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
+                        docker push ${DOCKER_REGISTRY}/user-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_REGISTRY}/user-service:latest
+                        docker push ${DOCKER_REGISTRY}/order-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_REGISTRY}/order-service:latest
+                        docker push ${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER}
+                        docker push ${DOCKER_REGISTRY}/notification-service:latest
+                        """
+                    }
                 }
             }
         }
