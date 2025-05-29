@@ -1,5 +1,12 @@
-// Fixed Jenkins Pipeline
 pipeline {
+    environment {
+        // Define environment variables
+        DOCKER_REGISTRY = 'docker.io/last9mukta'
+        AWS_REGION = 'ap-south-1'
+        EKS_CLUSTER_NAME = 'last9-demo'
+        KUBE_NAMESPACE = 'last9-otel-demo'
+    }
+
     agent {
         kubernetes {
             yaml """
@@ -30,24 +37,6 @@ spec:
         stage('Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/muktaa/demo-project.git'
-            }
-        }
-
-        stage('Push Docker Images') {
-            steps {
-                container('docker') {
-                    withCredentials([usernamePassword(credentialsId: 'docker-registry', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh """
-                        echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
-                        docker push ${DOCKER_REGISTRY}/user-service:${BUILD_NUMBER}
-                        docker push ${DOCKER_REGISTRY}/user-service:latest
-                        docker push ${DOCKER_REGISTRY}/order-service:${BUILD_NUMBER}
-                        docker push ${DOCKER_REGISTRY}/order-service:latest
-                        docker push ${DOCKER_REGISTRY}/notification-service:${BUILD_NUMBER}
-                        docker push ${DOCKER_REGISTRY}/notification-service:latest
-                        """
-                    }
-                }
             }
         }
 
