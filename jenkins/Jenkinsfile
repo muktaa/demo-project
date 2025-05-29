@@ -31,9 +31,16 @@ spec:
             steps {
                 container('aws-kubectl') {
                     sh '''
+                        echo "=== Configuring EKS ==="
                         aws eks update-kubeconfig --region ap-south-1 --name last9-demo
+
+                        echo "=== Applying resources ==="
                         kubectl apply -f k8s/
+
+                        echo "=== Checking pods ==="
                         kubectl get pods -n last9-otel-demo
+                        
+                        echo "=== Checking services ==="
                         kubectl get services -n last9-otel-demo
                     '''
                 }

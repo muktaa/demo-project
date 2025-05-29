@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: user-service
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   replicas: 2
   selector:
@@ -49,7 +49,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: user-service
-  namespace: microservices-demo
+  namespace: last9-otel-demo
 spec:
   selector:
     app: user-service
