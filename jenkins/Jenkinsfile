@@ -40,6 +40,13 @@ spec:
                         echo "=== Configuring EKS ==="
                         aws eks update-kubeconfig --region ap-south-1 --name last9-demo
 
+                        echo "=== Creating secret ==="
+                        # Create OpenTelemetry secret
+                        kubectl create secret generic otel-secret \
+                                    --from-literal=otel-headers="${LAST9_AUTH_HEADER}" \
+                                    --namespace ${KUBE_NAMESPACE} \
+                                    --dry-run=client -o yaml | kubectl apply -f -
+
                         echo "=== Applying resources ==="
                         kubectl apply -f k8s/
 
