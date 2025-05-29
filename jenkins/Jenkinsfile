@@ -1,4 +1,12 @@
 pipeline {
+    environment {
+        DOCKER_REGISTRY = 'docker.io/last9mukta'
+        AWS_REGION = 'ap-south-1'
+        EKS_CLUSTER_NAME = 'last9-demo'
+        KUBE_NAMESPACE = 'last9-otel-demo'
+        LAST9_AUTH_HEADER = credentials('last9-auth-header')
+    }
+
     agent {
         kubernetes {
             yaml """
@@ -15,10 +23,17 @@ spec:
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/muktaa/demo-project.git'
+            }
+        }
+
         stage('Setup Tools') {
             steps {
                 container('aws-kubectl') {
                     sh '''
+                        echo "Installing kubectl..."
                         curl -LO https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl
                         chmod +x kubectl && mv kubectl /usr/local/bin/
                         kubectl version --client
@@ -26,31 +41,33 @@ spec:
                 }
             }
         }
-        
-        stage('Deploy to EKS') {
+
+        stage('Configure EKS') {
             steps {
                 container('aws-kubectl') {
-                    sh '''
-                        echo "=== Configuring EKS ==="
-                        aws eks update-kubeconfig --region ap-south-1 --name last9-demo
-
-                        echo "=== Applying resources ==="
-                        kubectl apply -f k8s/
-
-                        echo "=== Checking pods ==="
-                        kubectl get pods -n last9-otel-demo
-                        
-                        echo "=== Checking services ==="
-                        kubectl get services -n last9-otel-demo
-                    '''
+                    sh """
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                        kubectl get nodes
+                    """
                 }
             }
         }
-    }
 
-    post {
-        always {
-            deleteDir()
+        stage('Create Namespace and OpenTelemetry Config') {
+            steps {
+               container('aws-kubectl') {
+                   sh """
+                       kubectl create secret generic otel-secret \
+                        --from-literal=otel-headers="${LAST9_AUTH_HEADER}" \
+                        -n ${KUBE_NAMESPACE} \
+                        --dry-run=client -o yaml | kubectl apply -f -
+                """
+               }
+            }
         }
-    }
-}
+
+        stage('Deploy Infrastructure') {
+            steps {
+                container('aws-kubectl') {
+                    sh """
+                        echo "Deploying PostgreSQL..."

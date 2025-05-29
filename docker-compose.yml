@@ -4,18 +4,14 @@ services:
   postgres:
     image: postgres:13
     environment:
-      POSTGRES_DB: microservicesdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_MULTIPLE_DATABASES: userdb,orderdb,notificationdb
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-
-  zipkin:
-    image: openzipkin/zipkin:latest
-    ports:
-      - "9411:9411"
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
 
   user-service:
     build: ./user-service
@@ -24,14 +20,11 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=microservicesdb
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - ZIPKIN_HOST=zipkin
-      - ZIPKIN_PORT=9411
+      - DB_NAME=userdb
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
     depends_on:
       - postgres
-      - zipkin
 
   order-service:
     build: ./order-service
@@ -40,18 +33,12 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=microservicesdb
-      - DB_USER=postgres
-      - DB_PASSWORD=password
-      - ZIPKIN_HOST=zipkin
-      - ZIPKIN_PORT=9411
-      - USER_SERVICE_HOST=user-service
-      - USER_SERVICE_PORT=8081
-      - NOTIFICATION_SERVICE_HOST=notification-service
-      - NOTIFICATION_SERVICE_PORT=8083
+      - DB_NAME=orderdb
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - USER_SERVICE_URL=http://user-service:8081
     depends_on:
       - postgres
-      - zipkin
       - user-service
 
   notification-service:
@@ -59,10 +46,13 @@ services:
     ports:
       - "8083:8083"
     environment:
-      - ZIPKIN_HOST=zipkin
-      - ZIPKIN_PORT=9411
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=notificationdb
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
     depends_on:
-      - zipkin
+      - postgres
 
 volumes:
-  postgres-data: 
+  postgres_data: 

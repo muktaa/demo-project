@@ -15,34 +15,48 @@ spec:
     spec:
       containers:
       - name: user-service
-        image: last9mukta/user-service:latest
+        image: docker.io/last9mukta/user-service:otel
         ports:
         - containerPort: 8081
         env:
-        - name: DB_HOST
-          value: "postgres-service"
-        - name: DB_PORT
-          value: "5432"
-        - name: DB_NAME
-          value: "microservicesdb"
-        - name: DB_USER
-          value: "postgres"
-        - name: DB_PASSWORD
-          value: "password"
-        - name: ZIPKIN_HOST
-          value: "zipkin-service"
-        - name: ZIPKIN_PORT
-          value: "9411"
-        livenessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 8081
-          initialDelaySeconds: 30
+        - name: OTEL_SERVICE_NAME
+          value: "user-service"
+        - name: OTEL_EXPORTER_OTLP_HEADERS
+          valueFrom:
+            secretKeyRef:
+              name: otel-secret
+              key: otel-headers
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres:5432/userdb
+        - name: SPRING_DATASOURCE_USERNAME
+          value: postgres
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: db-password
+        envFrom:
+        - configMapRef:
+            name: otel-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
         readinessProbe:
           httpGet:
             path: /actuator/health
             port: 8081
-          initialDelaySeconds: 5
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          initialDelaySeconds: 60
+          periodSeconds: 15
 
 ---
 apiVersion: v1
@@ -55,4 +69,6 @@ spec:
     app: user-service
   ports:
   - port: 8081
-    targetPort: 8081 
+    targetPort: 8081
+    protocol: TCP
+  type: ClusterIP 

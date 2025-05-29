@@ -15,10 +15,17 @@ spec:
     spec:
       containers:
       - name: order-service
-        image: docker.io/last9mukta/order-service:latest
+        image: docker.io/last9mukta/order-service:otel
         ports:
         - containerPort: 8082
         env:
+        - name: OTEL_SERVICE_NAME
+          value: "order-service"
+        - name: OTEL_EXPORTER_OTLP_HEADERS
+          valueFrom:
+            secretKeyRef:
+              name: otel-secret
+              key: otel-headers
         - name: SPRING_DATASOURCE_URL
           value: jdbc:postgresql://postgres:5432/orderdb
         - name: SPRING_DATASOURCE_USERNAME
@@ -29,11 +36,10 @@ spec:
               name: db-credentials
               key: db-password
         - name: USER_SERVICE_URL
-          value: http://user-service:8081
-        - name: NOTIFICATION_SERVICE_URL
-          value: http://notification-service:8083
-        - name: SPRING_ZIPKIN_BASEURL
-          value: http://zipkin:9411
+          value: "http://user-service:8081"
+        envFrom:
+        - configMapRef:
+            name: otel-config
         resources:
           requests:
             memory: "512Mi"

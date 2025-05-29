@@ -16,11 +16,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-  sleuth:
-    zipkin:
-      base-url: http://${ZIPKIN_HOST:localhost}:${ZIPKIN_PORT:9411}
-    sampler:
-      probability: 1.0
+        format_sql: true
 
 weather:
   api:
@@ -30,7 +26,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
   endpoint:
     health:
       show-details: always
