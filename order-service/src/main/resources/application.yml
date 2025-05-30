@@ -17,11 +17,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-  sleuth:
-    zipkin:
-      base-url: http://${ZIPKIN_HOST:localhost}:${ZIPKIN_PORT:9411}
-    sampler:
-      probability: 1.0
 
 user:
   service:
@@ -47,4 +42,4 @@ management:
 logging:
   level:
     com.demo.orderservice: DEBUG
-    org.springframework.cloud.sleuth: DEBUG 
+    io.opentelemetry: DEBUG 
