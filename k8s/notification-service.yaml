@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: notification-service
+      annotations:
+        sidecar.opentelemetry.io/inject: "true"
     spec:
       containers:
       - name: notification-service
@@ -26,15 +28,14 @@ spec:
             secretKeyRef:
               name: otel-secret
               key: otel-headers
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name=notification-service,service.namespace=last9-otel-demo,deployment.environment=production"
         - name: SPRING_DATASOURCE_URL
           value: jdbc:postgresql://postgres:5432/notificationdb
         - name: SPRING_DATASOURCE_USERNAME
           value: postgres
         - name: SPRING_DATASOURCE_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: db-credentials
-              key: db-password
+          value: password
         envFrom:
         - configMapRef:
             name: otel-config

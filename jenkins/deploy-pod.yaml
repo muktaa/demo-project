@@ -85,9 +85,9 @@ data:
     echo "Creating namespace..."
     kubectl apply -f k8s/namespace.yaml
     
-    echo "Deploying PostgreSQL and Zipkin..."
+    echo "Deploying PostgreSQL ..."
     kubectl apply -f k8s/postgres.yaml
-    kubectl apply -f k8s/zipkin.yaml
+  
     
     echo "Waiting for PostgreSQL to be ready..."
     kubectl wait --for=condition=available --timeout=300s deployment/postgres -n last9-otel-demo
@@ -111,5 +111,4 @@ data:
     kubectl get pods -n last9-otel-demo
     kubectl get services -n last9-otel-demo
     
-    echo "Zipkin UI should be accessible at:"
-    kubectl get service zipkin-service -n last9-otel-demo 
+    
