@@ -1,7 +1,16 @@
 pipeline {
     agent {
         kubernetes {
-            yamlFile 'jenkins/deploy-pod.yaml'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins-deployer
+  containers:
+  - name: aws-kubectl
+    image: amazon/aws-cli:latest
+    command: ['sleep', '3600']
+"""
         }
     }
 
@@ -14,10 +23,10 @@ pipeline {
     stages {
         stage('Setup Tools') {
             steps {
-                container('deployer') {
+                container('aws-kubectl') {
                     sh '''
-                        echo "=== Configuring kubectl ==="
-                        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+                        curl -LO https://dl.k8s.io/release/v1.24.0/bin/linux/amd64/kubectl
+                        chmod +x kubectl && mv kubectl /usr/local/bin/
                         kubectl version --client
                     '''
                 }
@@ -26,10 +35,10 @@ pipeline {
         
         stage('Deploy to EKS') {
             steps {
-                container('deployer') {
+                container('aws-kubectl') {
                     sh '''
-                        echo "=== Creating namespace ==="
-                        kubectl apply -f k8s/namespace.yaml
+                        echo "=== Configuring EKS ==="
+                        aws eks update-kubeconfig --region ap-south-1 --name last9-demo
 
                         echo "=== Creating secret ==="
                         # Create OpenTelemetry secret
@@ -38,20 +47,14 @@ pipeline {
                                     --namespace ${KUBE_NAMESPACE} \
                                     --dry-run=client -o yaml | kubectl apply -f -
 
-                        echo "=== Deploying PostgreSQL ==="
-                        kubectl apply -f k8s/postgres.yaml
+                        echo "=== Applying resources ==="
+                        kubectl apply -f k8s/
+
+                        echo "=== Checking pods ==="
+                        kubectl get pods -n last9-otel-demo
                         
-                        echo "=== Waiting for PostgreSQL to be ready ==="
-                        kubectl wait --for=condition=available --timeout=300s deployment/postgres -n ${KUBE_NAMESPACE}
-
-                        echo "=== Deploying microservices ==="
-                        kubectl apply -f k8s/user-service.yaml
-                        kubectl apply -f k8s/order-service.yaml
-                        kubectl apply -f k8s/notification-service.yaml
-                        kubectl apply -f k8s/ingress.yaml
-
-                       echo "=== Deploying otel for tracing ==="
-                       kubectl apply -f k8s/otel-collector.yaml
+                        echo "=== Checking services ==="
+                        kubectl get services -n last9-otel-demo
                     '''
                 }
             }
@@ -64,6 +67,13 @@ pipeline {
         }
     }
 }
+
+
+
+
+
+
+
 
 
 
