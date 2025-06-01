@@ -18,6 +18,7 @@ spec:
         DOCKER_REGISTRY = 'docker.io/last9mukta'
         KUBE_NAMESPACE = 'last9-otel-demo'
         LAST9_AUTH_HEADER = credentials('last9-auth-header')
+        OTLP_ENDPOINT = 'https://otlp-aps1.last9.io:443'
     }
 
     stages {
@@ -43,9 +44,9 @@ spec:
                         echo "=== Creating secret ==="
                         # Create OpenTelemetry secret
                         kubectl create secret generic otel-secret \
-                            --from-literal=last9-auth-header="Authorization: ${LAST9_AUTH_HEADER}" \
+                            --from-literal=last9-auth-header="${LAST9_AUTH_HEADER}" \
                             --namespace ${KUBE_NAMESPACE} \
-                            --dry-run=client
+                            --dry-run=client -o yaml | kubectl apply -f -
 
                         echo "=== Applying resources ==="
                         kubectl apply -f k8s/jenkins/ --validate=false
