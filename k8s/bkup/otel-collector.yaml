@@ -1,0 +1,95 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-collector
+  namespace: last9-otel-demo
+spec:
+  mode: deployment
+  serviceAccount: otel-collector
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "https://otlp-aps1.last9.io:443"
+    - name: OTEL_SERVICE_NAME
+      value: "otel-collector"
+    - name: OTEL_EXPORTER_OTLP_HEADERS
+      valueFrom:
+        secretKeyRef:
+          name: otel-secret
+          key: otel-headers
+    - name: OTEL_TRACES_EXPORTER
+      value: "otlp"
+    - name: OTEL_METRICS_EXPORTER
+      value: "otlp"
+    - name: OTEL_LOGS_EXPORTER
+      value: "none"
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: "grpc"
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+
+    exporters:
+      otlp:
+        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+        headers:
+          Authorization: ${OTEL_EXPORTER_OTLP_HEADERS}
+        tls:
+          insecure: false
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+        sending_queue:
+          enabled: true
+          queue_size: 100
+          num_consumers: 10
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: last9-otel-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-collector
+rules:
+- apiGroups: [""]
+  resources: ["pods", "nodes", "namespaces"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-collector
+subjects:
+- kind: ServiceAccount
+  name: otel-collector
+  namespace: last9-otel-demo
+roleRef:
+  kind: ClusterRole
+  name: otel-collector
+  apiGroup: rbac.authorization.k8s.io 

@@ -1,4 +1,4 @@
-# Distributed Microservices Project
+# Distributed Microservices Project with OpenTelemetry
 
 ## Project Structure
 ```
@@ -15,16 +15,35 @@ demo-project/
 │   ├── src/main/java/com/demo/notificationservice/
 │   ├── Dockerfile
 │   └── pom.xml
+├── microservices-ui/
+│   ├── src/
+│   ├── Dockerfile
+│   └── package.json
 ├── k8s/
-│   ├── namespace.yaml
-│   ├── user-service.yaml
-│   ├── order-service.yaml
-│   ├── notification-service.yaml
-│   ├── postgres.yaml
-│   └── ingress.yaml
+│   ├── local/
+│   │   ├── namespace.yaml
+│   │   ├── user-service.yaml
+│   │   ├── order-service.yaml
+│   │   ├── notification-service.yaml
+│   │   ├── postgres.yaml
+│   │   ├── postgres-init.yaml
+│   │   ├── otel-collector.yaml
+│   │   └── ingress.yaml
+│   └── jenkins/
+│       ├── namespace.yaml
+│       ├── user-service.yaml
+│       ├── order-service.yaml
+│       ├── notification-service.yaml
+│       ├── postgres.yaml
+│       ├── postgres-init.yaml
+│       ├── otel-collector.yaml
+│       └── ingress.yaml
 ├── jenkins/
 │   ├── Jenkinsfile
 │   └── deploy-pod.yaml
+├── test/
+│   └── local/
+│       └── load-gen.sh
 ├── docker-compose.yml
 └── README.md
 ```
@@ -48,9 +67,14 @@ demo-project/
    - Calls external news API
    - In-memory H2 database for notification logs
 
+4. **Microservices UI** (Port 80)
+   - Angular-based frontend
+   - Interacts with all backend services
+   - Real-time updates and notifications
+
 ### Distributed Tracing Flow:
 ```
-Client Request → User Service → Weather API
+Client Request → Microservices UI → User Service → Weather API
                       ↓
                 Order Service → User Service (validation)
                       ↓
@@ -59,12 +83,13 @@ Client Request → User Service → Weather API
 
 ## Technology Stack
 - **Framework**: Spring Boot 2.7.x
-- **Tracing**: Spring Cloud Sleuth + Zipkin
+- **Observability**: OpenTelemetry
 - **Database**: PostgreSQL (User & Order), H2 (Notification)
 - **Service Discovery**: Kubernetes native
 - **Containerization**: Docker
 - **Orchestration**: Kubernetes (EKS)
 - **CI/CD**: Jenkins
+- **Frontend**: Angular
 
 ## External APIs Used
 - **Weather API**: Open-Meteo (free, no API key required) - https://api.open-meteo.com/v1/forecast
@@ -73,8 +98,9 @@ Client Request → User Service → Weather API
 ## Prerequisites
 1. AWS Account with EKS cluster
 2. Jenkins with Kubernetes plugin
-3. Docker Hub account (or AWS ECR)
+3. Docker Hub account
 4. kubectl configured for your EKS cluster
+5. Last9 OpenTelemetry credentials
 
 ## Setup Instructions
 
@@ -85,30 +111,51 @@ For local testing, use Docker Compose:
 docker-compose up --build
 
 # Access services:
+# Microservices UI: http://localhost
 # User Service: http://localhost:8081
 # Order Service: http://localhost:8082
 # Notification Service: http://localhost:8083
-# Zipkin UI: http://localhost:9411
 ```
 
-### 2. EKS Deployment
-1. Create EKS cluster
-2. Configure kubectl
-3. Update image registry in k8s YAML files
-4. Deploy using kubectl or Jenkins pipeline
+### 2. Local Kubernetes Deployment
+```bash
+# Create namespace
+kubectl apply -f k8s/local/namespace.yaml
 
-### 3. Jenkins Configuration
-- Install Kubernetes plugin
-- Configure AWS credentials
-- Add GitHub webhook for automatic builds
+# Deploy all resources
+kubectl apply -f k8s/local --validate=false -n last9-otel-demo
+
+# setup
+./test/local/setup.sh
+
+# Generate load (optional)
+./test/local/load-gen.sh
+```
+
+### 3. Jenkins Deployment
+1. Configure Jenkins credentials:
+   - Add `last9-auth-header` credential with your Last9 OpenTelemetry auth header
+   - Add AWS credentials for EKS access
+
+2. Run the Jenkins pipeline:
+   - The pipeline will automatically:
+     - Create the namespace
+     - Set up OpenTelemetry collector
+     - Deploy all services
+     - Configure ingress
 
 ### 4. Monitoring Setup
-Deploy Zipkin for distributed tracing:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/openzipkin/zipkin/master/docker/examples/docker-compose-zipkin.yml
-```
+The OpenTelemetry collector is automatically configured to:
+- Collect traces, metrics, and logs
+- Export data to Last9
+- Provide local debugging through logging exporter
 
 ## API Endpoints
+
+### Microservices UI
+- `GET /` - Main application interface
+- `GET /api/users` - User management interface
+- `GET /api/orders` - Order management interface
 
 ### User Service (8081)
 - `POST /api/users/register` - Register new user
@@ -125,11 +172,14 @@ kubectl apply -f https://raw.githubusercontent.com/openzipkin/zipkin/master/dock
 - `GET /api/notifications/{id}` - Get notification status
 - `GET /api/notifications/news` - Get latest news
 
-## Tracing Verification
+## Observability Verification
 Once deployed, you can verify distributed tracing by:
-1. Making a request to create an order
-2. Checking Zipkin UI for the complete trace
-3. Observing spans across all three services plus external API calls 
+1. Making requests through the UI or load generator
+2. Checking Last9 dashboard for:
+   - Service maps
+   - Trace details
+   - Metrics
+   - Logs
 
 ## Security Considerations
 
@@ -140,22 +190,24 @@ Before pushing to a public repository:
    - API keys
    - AWS credentials
    - Docker registry credentials
+   - OpenTelemetry auth headers
 2. Use environment variables or Kubernetes secrets
-3. Follow the template in `k8s/secrets.template.yaml`
+3. Store credentials in Jenkins credential store
 
 ### Setting up Secrets
 1. Create Kubernetes secrets:
 ```bash
 # Create namespace
-kubectl create namespace microservices-demo
+kubectl create namespace last9-otel-demo
 
-# Create secrets from template
-cp k8s/secrets.template.yaml k8s/secrets.yaml
-# Edit secrets.yaml with your values
-kubectl apply -f k8s/secrets.yaml
+# Create OpenTelemetry secret
+kubectl create secret generic otel-secret \
+  --from-literal=last9-auth-header="your-auth-header" \
+  --namespace last9-otel-demo
 ```
 
 2. Update environment variables in Jenkins:
    - Go to Jenkins > Credentials > System > Global credentials
    - Add Docker registry credentials
-   - Add AWS credentials 
+   - Add AWS credentials
+   - Add Last9 OpenTelemetry auth header 

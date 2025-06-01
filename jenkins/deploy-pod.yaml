@@ -54,6 +54,15 @@ spec:
       value: "ap-south-1"
     - name: EKS_CLUSTER_NAME
       value: "last9-demo"
+    - name: KUBE_NAMESPACE
+      value: "last9-otel-demo"
+    - name: DOCKER_REGISTRY
+      value: "docker.io/last9mukta"
+    - name: LAST9_AUTH_HEADER
+      valueFrom:
+        secretKeyRef:
+          name: otel-secret
+          key: last9-auth-header
     volumeMounts:
     - name: aws-credentials
       mountPath: /root/.aws
@@ -83,29 +92,43 @@ data:
     aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
     
     echo "Creating namespace..."
-    kubectl apply -f k8s/namespace.yaml
+    kubectl apply -f k8s/jenkins/namespace.yaml
     
     echo "Deploying PostgreSQL ..."
-    kubectl apply -f k8s/postgres.yaml
-  
+    kubectl apply -f k8s/jenkins/postgres-init.yaml
+    kubectl apply -f k8s/jenkins/postgres.yaml
     
     echo "Waiting for PostgreSQL to be ready..."
     kubectl wait --for=condition=available --timeout=300s deployment/postgres -n last9-otel-demo
     
     echo "Updating image references..."
     # Replace with your actual registry
-    sed -i 's|your-registry|docker.io/last9mukta|g' k8s/*.yaml
+    sed -i 's|your-registry|docker.io/last9mukta|g' k8s/jenkins/*.yaml
+    
+    echo "Deploying OTLP credentials..."
+    # Create base64 encoded values for secrets
+    # export OTEL_HEADERS_BASE64=$(echo -n "$OTEL_HEADERS" | base64)
+    
+    # Replace placeholders in the template
+    envsubst < k8s/jenkins/otel-secret-jenkins.yaml > k8s/jenkins/otel-secret.yaml
+    kubectl apply -f k8s/jenkins/otel-secret.yaml
     
     echo "Deploying microservices..."
-    kubectl apply -f k8s/user-service.yaml
-    kubectl apply -f k8s/order-service.yaml
-    kubectl apply -f k8s/notification-service.yaml
-    kubectl apply -f k8s/ingress.yaml
+    kubectl apply -f k8s/jenkins/user-service.yaml
+    kubectl apply -f k8s/jenkins/order-service.yaml
+    kubectl apply -f k8s/jenkins/notification-service.yaml
+    
+    echo "Deploying UI..."
+    kubectl apply -f microservices-ui/k8s/deployment.yaml
+    
+    echo "Deploying ingress..."
+    kubectl apply -f k8s/jenkins/ingress.yaml
     
     echo "Waiting for services to be ready..."
     kubectl wait --for=condition=available --timeout=300s deployment/user-service -n last9-otel-demo
     kubectl wait --for=condition=available --timeout=300s deployment/order-service -n last9-otel-demo
     kubectl wait --for=condition=available --timeout=300s deployment/notification-service -n last9-otel-demo
+    kubectl wait --for=condition=available --timeout=300s deployment/microservices-ui -n last9-otel-demo
     
     echo "Deployment completed! Checking status..."
     kubectl get pods -n last9-otel-demo

@@ -1,0 +1,89 @@
+<div class="api-tester-container">
+  <h2>API Tester</h2>
+
+  <!-- Create Order Section -->
+  <div class="api-section">
+    <h3>Create Order</h3>
+    <form (ngSubmit)="createOrder()" #orderForm="ngForm">
+      <div>
+        <label for="orderUserId">User ID:</label>
+        <input type="number" id="orderUserId" name="orderUserId" [(ngModel)]="orderUserId" required />
+      </div>
+      <div>
+        <label for="productName">Product Name:</label>
+        <input type="text" id="productName" name="productName" [(ngModel)]="productName" required />
+      </div>
+      <div>
+        <label for="quantity">Quantity:</label>
+        <input type="number" id="quantity" name="quantity" [(ngModel)]="quantity" required />
+      </div>
+      <div>
+        <label for="price">Price:</label>
+        <input type="number" id="price" name="price" [(ngModel)]="price" required step="0.01" />
+      </div>
+      <button type="submit" [disabled]="!orderForm.form.valid">Create Order</button>
+    </form>
+
+    <!-- Order Response -->
+    <div *ngIf="orderResponse" [ngClass]="{'success-message': !orderError, 'error-message': orderError}">
+      <h3>{{ orderError ? 'Error Creating Order' : 'Order Created Successfully' }}</h3>
+      <p *ngIf="orderError"><strong>Status:</strong> {{ orderResponse.status }}</p>
+      <p *ngIf="orderError"><strong>Message:</strong> {{ orderResponse.message || orderResponse.error?.message || 'Unknown error' }}</p>
+      <pre>{{ orderResponse | json }}</pre>
+    </div>
+  </div>
+
+  <!-- Get Orders Section -->
+  <div class="api-section">
+    <h3>Get Orders</h3>
+    <form (ngSubmit)="getOrdersByUser()" #getOrdersForm="ngForm">
+      <div>
+        <label for="getOrdersUserId">User ID:</label>
+        <input type="number" id="getOrdersUserId" name="getOrdersUserId" [(ngModel)]="getOrdersUserId" required />
+      </div>
+      <button type="submit" [disabled]="!getOrdersForm.form.valid">Get Orders</button>
+    </form>
+
+    <!-- Orders Response -->
+    <div *ngIf="ordersResponse" [ngClass]="{'success-message': !ordersError, 'error-message': ordersError}">
+      <h3>{{ ordersError ? 'Error Fetching Orders' : 'Orders Retrieved Successfully' }}</h3>
+      <p *ngIf="ordersError"><strong>Status:</strong> {{ ordersResponse.status }}</p>
+      <p *ngIf="ordersError"><strong>Message:</strong> {{ ordersResponse.message || ordersResponse.error?.message || 'Unknown error' }}</p>
+      <pre>{{ ordersResponse | json }}</pre>
+    </div>
+  </div>
+
+  <!-- Get Weather Section -->
+  <div class="api-section">
+    <h3>Get Weather</h3>
+    <form (ngSubmit)="getWeather()" #weatherForm="ngForm">
+      <div>
+        <label for="weatherUserId">User ID:</label>
+        <input type="number" id="weatherUserId" name="weatherUserId" [(ngModel)]="weatherUserId" required />
+      </div>
+      <button type="submit" [disabled]="!weatherForm.form.valid">Get Weather</button>
+    </form>
+
+    <!-- Weather Response -->
+    <div *ngIf="weatherResponse" [ngClass]="{'success-message': !weatherError, 'error-message': weatherError}">
+      <h3>{{ weatherError ? 'Error Fetching Weather' : 'Weather Retrieved Successfully' }}</h3>
+      <p *ngIf="weatherError"><strong>Status:</strong> {{ weatherResponse.status }}</p>
+      <p *ngIf="weatherError"><strong>Message:</strong> {{ weatherResponse.message || weatherResponse.error?.message || 'Unknown error' }}</p>
+      <pre>{{ weatherResponse | json }}</pre>
+    </div>
+  </div>
+
+  <!-- Get News Section -->
+  <div class="api-section">
+    <h3>Get Latest News</h3>
+    <button (click)="getNews()">Get News</button>
+
+    <!-- News Response -->
+    <div *ngIf="newsResponse" [ngClass]="{'success-message': !newsError, 'error-message': newsError}">
+      <h3>{{ newsError ? 'Error Fetching News' : 'News Retrieved Successfully' }}</h3>
+      <p *ngIf="newsError"><strong>Status:</strong> {{ newsResponse.status }}</p>
+      <p *ngIf="newsError"><strong>Message:</strong> {{ newsResponse.message || newsResponse.error?.message || 'Unknown error' }}</p>
+      <pre>{{ newsResponse | json }}</pre>
+    </div>
+  </div>
+</div>

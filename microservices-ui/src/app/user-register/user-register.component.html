@@ -1,0 +1,28 @@
+<div class="register-container">
+  <h2>User Registration</h2>
+  <form (ngSubmit)="registerUser()" #registerForm="ngForm">
+    <div>
+      <label for="name">Name:</label>
+      <input type="text" id="name" name="name" [(ngModel)]="name" required />
+    </div>
+    <div>
+      <label for="email">Email:</label>
+      <input type="email" id="email" name="email" [(ngModel)]="email" required />
+    </div>
+    <button type="submit" [disabled]="!registerForm.form.valid">Register</button>
+  </form>
+  
+  <!-- Success Response -->
+  <div *ngIf="response && !isError" class="success-message">
+    <h3>Success!</h3>
+    <pre>{{ response | json }}</pre>
+  </div>
+
+  <!-- Error Response -->
+  <div *ngIf="response && isError" class="error-message">
+    <h3>Error Occurred</h3>
+    <p><strong>Status:</strong> {{ response.status }}</p>
+    <p><strong>Message:</strong> {{ response.message || response.error?.message || 'Unknown error' }}</p>
+    <pre>{{ response | json }}</pre>
+  </div>
+</div>

@@ -26,8 +26,8 @@ spec:
         - name: OTEL_EXPORTER_OTLP_HEADERS
           valueFrom:
             secretKeyRef:
-              name: otel-secret
-              key: otel-headers
+              name: otel-credentials
+              key: otlp-auth
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: "service.name=user-service,service.namespace=last9-otel-demo,deployment.environment=production"
         - name: SPRING_DATASOURCE_URL

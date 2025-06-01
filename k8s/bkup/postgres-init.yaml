@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init
+  namespace: last9-otel-demo
+spec:
+  template:
+    spec:
+      containers:
+      - name: postgres-init
+        image: postgres:13
+        command:
+        - /bin/bash
+        - -c
+        - |
+          until pg_isready -h postgres -U postgres; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          for db in microservicesdb userdb orderdb notificationdb; do
+            psql -h postgres -U postgres -c "CREATE DATABASE \"$db\";"
+            psql -h postgres -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE \"$db\" TO postgres;"
+          done
+        env:
+        - name: PGPASSWORD
+          value: password
+      restartPolicy: OnFailure 

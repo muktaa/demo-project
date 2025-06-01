@@ -46,3 +46,10 @@ aws-credentials.json
 # Docker
 .docker/
 docker-compose.override.yml 
+
+iam-policy.json
+
+# local
+k8s/local/
+k8s/bkp/
+

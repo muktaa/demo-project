@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: last9-otel-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+      annotations:
+        sidecar.opentelemetry.io/inject: "true"
+    spec:
+      containers:
+      - name: user-service
+        image: docker.io/last9mukta/user-service:latest
+        ports:
+        - containerPort: 8081
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: "user-service"
+        - name: OTEL_EXPORTER_OTLP_HEADERS
+          valueFrom:
+            secretKeyRef:
+              name: otel-secret
+              key: last9-auth-header
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "service.name=user-service,service.namespace=last9-otel-demo,deployment.environment=production"
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres:5432/userdb
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        envFrom:
+        - configMapRef:
+            name: otel-config
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8081
+          initialDelaySeconds: 60
+          periodSeconds: 15
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: last9-otel-demo
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 8081
+    targetPort: 8081
+    protocol: TCP
+  type: ClusterIP 

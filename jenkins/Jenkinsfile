@@ -43,12 +43,12 @@ spec:
                         echo "=== Creating secret ==="
                         # Create OpenTelemetry secret
                         kubectl create secret generic otel-secret \
-                                    --from-literal=otel-headers="${LAST9_AUTH_HEADER}" \
+                                    --from-literal=last9-auth-header="${LAST9_AUTH_HEADER}" \
                                     --namespace ${KUBE_NAMESPACE} \
                                     --dry-run=client -o yaml | kubectl apply -f -
 
                         echo "=== Applying resources ==="
-                        kubectl apply -f k8s/
+                        kubectl apply -f k8s/jenkins/
 
                         echo "=== Checking pods ==="
                         kubectl get pods -n last9-otel-demo
