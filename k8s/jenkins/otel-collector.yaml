@@ -24,7 +24,7 @@ spec:
         - name: OTEL_EXPORTER_OTLP_HEADERS
           valueFrom:
             secretKeyRef:
-              name: otel-secret
+              name: otel-credentials
               key: last9-auth-header
         volumeMounts:
         - name: otel-collector-config

@@ -26,7 +26,7 @@ spec:
         - name: OTEL_EXPORTER_OTLP_HEADERS
           valueFrom:
             secretKeyRef:
-              name: otel-secret
+              name: otel-credentials
               key: last9-auth-header
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: "service.name=notification-service,service.namespace=last9-otel-demo,deployment.environment=production"
