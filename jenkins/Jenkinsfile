@@ -33,7 +33,7 @@ spec:
                         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                         chmod +x kubectl
                         mv kubectl /usr/local/bin/
-                        
+
                         echo "=== Configuring EKS ==="
                         aws eks update-kubeconfig --region ap-south-1 --name last9-demo
 
@@ -41,7 +41,7 @@ spec:
                         # Create OpenTelemetry secret
                         kubectl create secret generic otel-credentials \
                             --from-literal=last9-auth-header="${LAST9_AUTH_HEADER}" \
-                            --namespace ${KUBE_NAMESPACE} --region ap-south-1  \
+                            --namespace ${KUBE_NAMESPACE}  \
                             --dry-run=client -o yaml | kubectl apply -f -
 
                         echo "=== Applying resources ==="
