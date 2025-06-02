@@ -10,6 +10,9 @@ spec:
   - name: aws-kubectl
     image: amazon/aws-cli:latest
     command: ['sleep', '3600']
+    env:
+    - name: AWS_DEFAULT_REGION
+      value: ap-south-1
 """
         }
     }
@@ -33,7 +36,7 @@ spec:
                         # Create OpenTelemetry secret
                         kubectl create secret generic otel-credentials \
                             --from-literal=last9-auth-header="${LAST9_AUTH_HEADER}" \
-                            --namespace ${KUBE_NAMESPACE} \
+                            --namespace ${KUBE_NAMESPACE} --region ap-south-1  \
                             --dry-run=client -o yaml | kubectl apply -f -
 
                         echo "=== Applying resources ==="
